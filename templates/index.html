@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日提醒助手 - 配置中心</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a90d9;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .main-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px 16px 0 0 !important;
+            padding: 16px 20px;
+            font-weight: 600;
+        }
+        .card-header i {
+            margin-right: 8px;
+        }
+        .card-body {
+            padding: 24px;
+        }
+        .form-label {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .form-control, .form-select {
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            padding: 12px 16px;
+            transition: all 0.3s;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 24px;
+        }
+        .btn-danger {
+            border-radius: 10px;
+            padding: 12px 24px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background: #f0f4ff;
+        }
+        .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: #e8f0ff;
+        }
+        .course-table {
+            width: 100%;
+            margin-top: 16px;
+        }
+        .course-table th {
+            background: #f8f9fa;
+            font-weight: 500;
+        }
+        .course-table td, .course-table th {
+            padding: 12px;
+            vertical-align: middle;
+        }
+        .badge-week {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-inactive {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #e8f4fd 0%, #f0e8fd 100%);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+        .info-box h6 {
+            margin: 0 0 8px 0;
+            color: #333;
+        }
+        .info-box p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+        textarea.form-control {
+            min-height: 120px;
+        }
+        .nav-tabs {
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .nav-tabs .nav-link {
+            border: none;
+            color: #666;
+            padding: 12px 24px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .nav-tabs .nav-link.active {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            background: transparent;
+        }
+        .tab-content {
+            padding-top: 20px;
+        }
+        .week-indicator {
+            font-size: 48px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .config-file-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-family: monospace;
+            font-size: 13px;
+            color: #666;
+        }
+        .reminder-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .reminder-item input {
+            flex: 1;
+            margin-right: 8px;
+        }
+        .reminder-item .btn {
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- 标题 -->
+        <div class="text-center mb-4">
+            <h1 class="text-white mb-2">
+                <i class="bi bi-bell-fill"></i> 每日提醒助手
+            </h1>
+            <p class="text-white-50">配置中心</p>
+        </div>
+
+        <!-- 状态卡片 -->
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-4 text-center">
+                        <div class="week-indicator" id="currentWeek">{% if current_week %}{{ current_week }}{% else %}-{% endif %}</div>
+                        <div class="text-muted">当前周次</div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="h3 mb-0">{{ courses_count }}</div>
+                        <div class="text-muted">已导入课程</div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        {% if config.semester.start_date %}
+                        <span class="status-badge status-active">已配置</span>
+                        {% else %}
+                        <span class="status-badge status-inactive">未配置</span>
+                        {% endif %}
+                        <div class="text-muted mt-1">系统状态</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 配置选项卡 -->
+        <div class="card">
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="configTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="semester-tab" data-bs-toggle="tab" data-bs-target="#semester" type="button">
+                            <i class="bi bi-calendar3"></i> 学期设置
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button">
+                            <i class="bi bi-book"></i> 课表管理
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="reminder-tab" data-bs-toggle="tab" data-bs-target="#reminder" type="button">
+                            <i class="bi bi-bell"></i> 每日提醒
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="test-tab" data-bs-toggle="tab" data-bs-target="#test" type="button">
+                            <i class="bi bi-send"></i> 测试
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="configTabsContent">
+                    <!-- 学期设置 -->
+                    <div class="tab-pane fade show active" id="semester" role="tabpanel">
+                        <div class="info-box">
+                            <h6><i class="bi bi-info-circle"></i> 说明</h6>
+                            <p>设置开学日期后，系统会自动计算当前周次，并根据单双周筛选课程。第一周从开学日期所在周开始计算。</p>
+                        </div>
+                        
+                        <form id="semesterForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">开学日期（第一周开始）</label>
+                                    <input type="date" class="form-control" id="startDate" value="{{ start_date }}">
+                                    <div class="form-text">例如：2026-03-02（3月2日周一开学）</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">总周数</label>
+                                    <input type="number" class="form-control" id="totalWeeks" value="{{ total_weeks }}" min="1" max="30">
+                                    <div class="form-text">一学期通常为16-18周</div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> 保存学期配置
+                            </button>
+                        </form>
+                        
+                        <hr class="my-4">
+                        
+                        <h5 class="mb-3"><i class="bi bi-geo-alt"></i> 天气城市设置</h5>
+                        <form id="locationForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">城市代码</label>
+                                    <input type="text" class="form-control" id="locationCode" value="{{ config.user.location }}">
+                                    <div class="form-text">和风天气城市代码，如 101110101（西安长安区）</div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">城市名称</label>
+                                    <input type="text" class="form-control" id="locationName" value="{{ config.user.location_name }}">
+                                    <div class="form-text">城市显示名称</div>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <a href="https://github.com/qwd/LocationList/blob/master/China-City-List-latest.csv" target="_blank" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-search"></i> 查询城市代码
+                                </a>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> 保存城市设置
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 课表管理 -->
+                    <div class="tab-pane fade" id="courses" role="tabpanel">
+                        <div class="info-box">
+                            <h6><i class="bi bi-info-circle"></i> 说明</h6>
+                            <p>上传教务系统导出的矩阵式课表 Excel 文件，系统会自动解析课程信息。支持同一单元格多门课程、单双周识别。</p>
+                        </div>
+
+                        <div class="upload-area mb-4" id="uploadArea">
+                            <i class="bi bi-cloud-upload" style="font-size: 48px; color: #ccc;"></i>
+                            <p class="mt-3 mb-0">点击或拖拽 Excel 文件到此处上传</p>
+                            <p class="text-muted small">支持 .xlsx 格式</p>
+                            <input type="file" id="courseFile" accept=".xlsx,.xls" style="display: none;">
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">已导入课程</h5>
+                            <div>
+                                <button class="btn btn-primary btn-sm me-2" id="addCourseBtn">
+                                    <i class="bi bi-plus-lg"></i> 添加课程
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" id="clearCoursesBtn">
+                                    <i class="bi bi-trash"></i> 清空课程
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="courseListContainer">
+                            <p class="text-muted text-center py-4">暂无课程数据，请上传课表文件</p>
+                        </div>
+                    </div>
+
+                    <!-- 每日提醒 -->
+                    <div class="tab-pane fade" id="reminder" role="tabpanel">
+                        <div class="info-box">
+                            <h6><i class="bi bi-info-circle"></i> 说明</h6>
+                            <p>设置每日提醒的内容，这些提醒会在每天的消息中显示。可以添加多条提醒，每条提醒占一行。</p>
+                        </div>
+                        
+                        <form id="reminderForm">
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <div class="alert alert-info">
+                                        <h6><i class="bi bi-clock"></i> 推送时间设置</h6>
+                                        <p class="mb-2">推送时间由 GitHub Actions 控制，默认为北京时间 <strong>23:30</strong>。</p>
+                                        <p class="mb-2"><strong>修改方法：</strong></p>
+                                        <ol class="mb-0">
+                                            <li>进入你的 GitHub 项目页面</li>
+                                            <li>打开 <code>.github/workflows/daily_reminder.yml</code> 文件</li>
+                                            <li>找到 <code>cron: '30 15 * * *'</code> 这一行</li>
+                                            <li>修改时间（格式：分 时，UTC时间）</li>
+                                            <li>北京时间 = UTC + 8（例如北京时间 21:00 = UTC 13:00）</li>
+                                        </ol>
+                                        <p class="mt-2 mb-0"><strong>建议：</strong>由于 GitHub Actions 存在排队现象，建议将时间设置为目标时间提前 2-2.5 小时。</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label">周末推送</label>
+                                    <select class="form-select" id="skipWeekend">
+                                        <option value="true" {% if config.reminder.skip_weekend == true %}selected{% endif %}>跳过周末</option>
+                                        <option value="false" {% if config.reminder.skip_weekend == false %}selected{% endif %}>周末也推送</option>
+                                    </select>
+                                    <div class="form-text">周末通常没有课程，可选择跳过</div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">每日提醒内容</label>
+                                <div id="reminderItems">
+                                    <!-- 动态生成 -->
+                                </div>
+                                <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addReminderBtn">
+                                    <i class="bi bi-plus-lg"></i> 添加提醒
+                                </button>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> 保存每日提醒配置
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 测试 -->
+                    <div class="tab-pane fade" id="test" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-send-fill" style="font-size: 48px; color: var(--primary-color);"></i>
+                                        <h5 class="mt-3">测试推送</h5>
+                                        <p class="text-muted">发送一条测试消息到微信，验证推送配置是否正确</p>
+                                        <button class="btn btn-success" id="testPushBtn">
+                                            <i class="bi bi-send"></i> 发送测试推送
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="bi bi-play-fill" style="font-size: 48px; color: var(--success-color);"></i>
+                                        <h5 class="mt-3">运行主程序</h5>
+                                        <p class="text-muted">完整运行一次提醒程序，生成并发送明日的提醒消息</p>
+                                        <button class="btn btn-primary" id="testRunBtn">
+                                            <i class="bi bi-play"></i> 运行主程序
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="config-file-info">
+                            <strong>配置文件位置：</strong><br>
+                            • 主配置：config.json<br>
+                            • 环境变量：.env（本地）/ GitHub Secrets（线上）
+                        </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 页脚 -->
+        <div class="text-center text-white-50 py-3">
+            <small>每日提醒助手 v1.0 | 基于 GitHub Actions 自动运行</small>
+        </div>
+    </div>
+
+    <!-- 课程编辑模态框 -->
+    <div class="modal fade" id="courseModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="courseModalTitle">添加课程</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="courseForm">
+                        <input type="hidden" id="courseIndex" value="-1">
+                        <div class="mb-3">
+                            <label class="form-label">课程名称 *</label>
+                            <input type="text" class="form-control" id="courseName" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">星期 *</label>
+                                <select class="form-select" id="courseWeekday" required>
+                                    <option value="1">周一</option>
+                                    <option value="2">周二</option>
+                                    <option value="3">周三</option>
+                                    <option value="4">周四</option>
+                                    <option value="5">周五</option>
+                                    <option value="6">周六</option>
+                                    <option value="7">周日</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">周次类型</label>
+                                <select class="form-select" id="courseWeekType">
+                                    <option value="all">每周</option>
+                                    <option value="odd">单周</option>
+                                    <option value="even">双周</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">开始节次 *</label>
+                                <input type="number" class="form-control" id="courseStartSection" min="1" max="12" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">结束节次 *</label>
+                                <input type="number" class="form-control" id="courseEndSection" min="1" max="12" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">开始周 *</label>
+                                <input type="number" class="form-control" id="courseStartWeek" min="1" max="30" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">结束周 *</label>
+                                <input type="number" class="form-control" id="courseEndWeek" min="1" max="30" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">教师</label>
+                            <input type="text" class="form-control" id="courseTeacher">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">地点</label>
+                            <input type="text" class="form-control" id="courseLocation">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="saveCourseBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toastId = 'toast-' + Date.now();
+            
+            const bgClass = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-warning');
+            
+            const toastHtml = `
+                <div id="${toastId}" class="toast align-items-center text-white ${bgClass}" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">${message}</div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+            const toastEl = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+            toast.show();
+            
+            toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+        }
+
+        // 学期配置
+        document.getElementById('semesterForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                start_date: document.getElementById('startDate').value,
+                total_weeks: document.getElementById('totalWeeks').value
+            };
+            
+            try {
+                const response = await fetch('/api/semester', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message || '保存成功');
+                    if (result.current_week) {
+                        document.getElementById('currentWeek').textContent = result.current_week;
+                    }
+                } else {
+                    showToast(result.error || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('请求失败: ' + error.message, 'error');
+            }
+        });
+
+        // 城市设置
+        document.getElementById('locationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const data = {
+                location: document.getElementById('locationCode').value,
+                location_name: document.getElementById('locationName').value
+            };
+            
+            try {
+                const response = await fetch('/api/location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message || '城市设置已保存');
+                } else {
+                    showToast(result.error || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('请求失败: ' + error.message, 'error');
+            }
+        });
+
+        // 课表上传
+        const uploadArea = document.getElementById('uploadArea');
+        const courseFile = document.getElementById('courseFile');
+
+        uploadArea.addEventListener('click', () => courseFile.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                courseFile.files = e.dataTransfer.files;
+                uploadCourses();
+            }
+        });
+        
+        courseFile.addEventListener('change', uploadCourses);
+
+        async function uploadCourses() {
+            const file = courseFile.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                showToast('正在上传并解析课表...', 'warning');
+                
+                const response = await fetch('/api/upload-courses', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message || `成功导入 ${result.courses_count} 门课程`);
+                    loadCourseList();
+                } else {
+                    showToast(result.error || '导入失败', 'error');
+                }
+            } catch (error) {
+                showToast('上传失败: ' + error.message, 'error');
+            }
+        }
+
+        // 加载课程列表
+        async function loadCourseList() {
+            try {
+                const response = await fetch('/api/courses');
+                const result = await response.json();
+                
+                if (result.success && result.grouped.length > 0) {
+                    let html = '<div class="table-responsive"><table class="table table-hover course-table">';
+                    html += '<thead><tr><th>星期</th><th>课程</th><th>节次</th><th>教师</th><th>地点</th><th>周次</th><th>操作</th></tr></thead><tbody>';
+                    
+                    // 需要记录全局索引
+                    let globalIndex = 0;
+                    result.grouped.forEach(group => {
+                        group.courses.forEach((course, idx) => {
+                            const weekType = course.week_type === 'odd' ? '(单)' : (course.week_type === 'even' ? '(双)' : '');
+                            const courseIndex = globalIndex++;
+                            html += `
+                                <tr>
+                                    ${idx === 0 ? `<td rowspan="${group.courses.length}"><span class="badge-week">${group.name}</span></td>` : ''}
+                                    <td>${course.course_name}</td>
+                                    <td>第${course.start_section}-${course.end_section}节</td>
+                                    <td>${course.teacher || '-'}</td>
+                                    <td>${course.location || '-'}</td>
+                                    <td>${course.start_week}-${course.end_week}周${weekType}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="editCourse(${courseIndex})">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCourse(${courseIndex})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    });
+                    
+                    html += '</tbody></table></div>';
+                    document.getElementById('courseListContainer').innerHTML = html;
+                } else {
+                    document.getElementById('courseListContainer').innerHTML = '<p class="text-muted text-center py-4">暂无课程数据，请上传课表文件或添加课程</p>';
+                }
+            } catch (error) {
+                console.error('加载课程列表失败:', error);
+            }
+        }
+
+        // 清空课程
+        document.getElementById('clearCoursesBtn').addEventListener('click', async function() {
+            if (!confirm('确定要清空所有课程数据吗？')) return;
+            
+            try {
+                const response = await fetch('/api/courses/clear', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('课程列表已清空');
+                    loadCourseList();
+                }
+            } catch (error) {
+                showToast('操作失败: ' + error.message, 'error');
+            }
+        });
+
+        // 每日提醒配置
+        let reminderItems = [];
+        {% if config.reminder and config.reminder.get('items') %}
+        reminderItems = {{ config.reminder.get('items', []) | tojson }};
+        {% endif %}
+        
+        function renderReminderItems() {
+            const container = document.getElementById('reminderItems');
+            container.innerHTML = '';
+            
+            reminderItems.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'reminder-item';
+                div.innerHTML = `
+                    <input type="text" class="form-control" value="${item}" onchange="updateReminderItem(${index}, this.value)">
+                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeReminderItem(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+        }
+        
+        window.updateReminderItem = function(index, value) {
+            reminderItems[index] = value;
+        };
+        
+        window.removeReminderItem = function(index) {
+            reminderItems.splice(index, 1);
+            renderReminderItems();
+        };
+        
+        document.getElementById('addReminderBtn').addEventListener('click', function() {
+            reminderItems.push('');
+            renderReminderItems();
+            // 聚焦到新添加的输入框
+            const inputs = document.querySelectorAll('#reminderItems input');
+            if (inputs.length > 0) {
+                inputs[inputs.length - 1].focus();
+            }
+        });
+        
+        document.getElementById('reminderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // 过滤空项
+            const items = reminderItems.filter(item => item.trim() !== '');
+            
+            const data = {
+                time: document.getElementById('reminderTime').value,
+                skip_weekend: document.getElementById('skipWeekend').value === 'true',
+                items: items
+            };
+            
+            try {
+                const response = await fetch('/api/reminder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message || '每日提醒配置已保存');
+                    reminderItems = items;
+                    renderReminderItems();
+                } else {
+                    showToast(result.error || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('请求失败: ' + error.message, 'error');
+            }
+        });
+        
+        // 初始化每日提醒列表
+        renderReminderItems();
+
+        // 初始化每日提醒列表
+        renderReminderItems();
+
+        // 测试推送
+        document.getElementById('testPushBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 发送中...';
+            
+            try {
+                const response = await fetch('/api/test-push', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message);
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } catch (error) {
+                showToast('请求失败: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-send"></i> 发送测试推送';
+            }
+        });
+
+        // 运行主程序
+        document.getElementById('testRunBtn').addEventListener('click', async function() {
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 运行中...';
+            
+            try {
+                const response = await fetch('/api/test-run', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message);
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } catch (error) {
+                showToast('请求失败: ' + error.message, 'error');
+            } finally {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-play"></i> 运行主程序';
+            }
+        });
+
+        // 课程管理
+        const courseModal = new bootstrap.Modal(document.getElementById('courseModal'));
+        
+        // 添加课程按钮
+        document.getElementById('addCourseBtn').addEventListener('click', function() {
+            document.getElementById('courseModalTitle').textContent = '添加课程';
+            document.getElementById('courseIndex').value = '-1';
+            document.getElementById('courseForm').reset();
+            courseModal.show();
+        });
+        
+        // 编辑课程
+        window.editCourse = async function(index) {
+            try {
+                const response = await fetch('/api/courses');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const course = result.courses[index];
+                    if (course) {
+                        document.getElementById('courseModalTitle').textContent = '编辑课程';
+                        document.getElementById('courseIndex').value = index;
+                        document.getElementById('courseName').value = course.course_name;
+                        document.getElementById('courseWeekday').value = course.weekday;
+                        document.getElementById('courseWeekType').value = course.week_type || 'all';
+                        document.getElementById('courseStartSection').value = course.start_section;
+                        document.getElementById('courseEndSection').value = course.end_section;
+                        document.getElementById('courseStartWeek').value = course.start_week;
+                        document.getElementById('courseEndWeek').value = course.end_week;
+                        document.getElementById('courseTeacher').value = course.teacher || '';
+                        document.getElementById('courseLocation').value = course.location || '';
+                        courseModal.show();
+                    }
+                }
+            } catch (error) {
+                showToast('获取课程信息失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 删除课程
+        window.deleteCourse = async function(index) {
+            if (!confirm('确定要删除这门课程吗？')) return;
+            
+            try {
+                const response = await fetch('/api/courses/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ index })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message);
+                    loadCourseList();
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } catch (error) {
+                showToast('删除失败: ' + error.message, 'error');
+            }
+        };
+        
+        // 保存课程
+        document.getElementById('saveCourseBtn').addEventListener('click', async function() {
+            const index = parseInt(document.getElementById('courseIndex').value);
+            const data = {
+                course_name: document.getElementById('courseName').value,
+                weekday: document.getElementById('courseWeekday').value,
+                week_type: document.getElementById('courseWeekType').value,
+                start_section: document.getElementById('courseStartSection').value,
+                end_section: document.getElementById('courseEndSection').value,
+                start_week: document.getElementById('courseStartWeek').value,
+                end_week: document.getElementById('courseEndWeek').value,
+                teacher: document.getElementById('courseTeacher').value,
+                location: document.getElementById('courseLocation').value
+            };
+            
+            // 验证
+            if (!data.course_name || !data.start_section || !data.end_section || !data.start_week || !data.end_week) {
+                showToast('请填写所有必填字段', 'error');
+                return;
+            }
+            
+            try {
+                const url = index >= 0 ? '/api/courses/edit' : '/api/courses/add';
+                if (index >= 0) {
+                    data.index = index;
+                }
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message);
+                    courseModal.hide();
+                    loadCourseList();
+                } else {
+                    showToast(result.error, 'error');
+                }
+            } catch (error) {
+                showToast('保存失败: ' + error.message, 'error');
+            }
+        });
+
+        // 页面加载时获取课程列表
+        loadCourseList();
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# 环境变量（不要上传密钥！）
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 上传目录
+uploads/
+
+# 日志
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db

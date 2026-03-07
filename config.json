@@ -1,0 +1,17 @@
+{
+  "user": {
+    "name": "",
+    "location": "101110101",
+    "location_name": "请修改为你的城市"
+  },
+  "semester": {
+    "start_date": "",
+    "total_weeks": 16,
+    "current_week": null
+  },
+  "reminder": {
+    "skip_weekend": true,
+    "items": []
+  },
+  "courses": []
+}

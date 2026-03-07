@@ -1,0 +1,61 @@
+name: Daily Reminder
+
+on:
+  schedule:
+    # 每天 15:30 UTC = 北京时间 23:30
+    - cron: '30 15 * * *'
+  workflow_dispatch:  # 手动触发按钮
+
+jobs:
+  check-weekday:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check if weekday
+        id: check
+        run: |
+          # 获取明天是星期几（1-5=工作日，6-7=周末）
+          TOMORROW=$(date -d "+1 day" +%u)
+          if [ "$TOMORROW" -le 5 ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "明天是工作日，将发送提醒"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "明天是周末，跳过提醒"
+          fi
+
+  send-reminder:
+    needs: check-weekday
+    if: needs.check-weekday.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run reminder script
+        env:
+          QWEATHER_KEY: ${{ secrets.QWEATHER_KEY }}
+          QWEATHER_HOST: ${{ secrets.QWEATHER_HOST }}
+          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+        run: python main.py
+      
+      - name: Upload config (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-backup
+          path: config.json
+          retention-days: 7
