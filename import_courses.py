@@ -2,26 +2,26 @@
 # -*- coding: utf-8 -*-
 
 """
-课表导入工具 - 适配教务系统导出的矩阵式课表
+课表导入工具 - 支持多种格式的矩阵式课表
 
 使用方法：
     python import_courses.py 学生课表.xlsx
 
-课表格式说明：
-    - 矩阵式课表：行=节次，列=星期
-    - 每个单元格可能包含多门课程，或同一课程的不同周次安排
+支持的格式：
+    格式1（教务系统格式，带编号）：
+        课程名[编码] 数字
+        周次 节次 教师[编码,职称] 地点
     
-    格式示例1（同一课程不同周次不同节次）：
-        计算机网络组建与设计实训[000000001] 04
-        16周 5-6节 张三[22222222,副教授] 一教1513
-        计算机科学与技术2404班
-        计算机网络组建与设计实训[000000001] 04
-        9-15周 5-8节 张三[22222222,副教授] 一教1513
+    格式2（简化格式，推荐）：
+        课程名[编号]
+        周次 教师地点
     
-    格式示例2（同一课程不同周次不同地点）：
-        计算机网络[000000004] 04
-        1-8周 3-4节 王五[21111262,讲师] 一教1227
-        9-16周 3-4节 王五[21111262,讲师] 一教1517
+    示例：
+        高等数学[001]
+        1-16周 张老师 一教101
+        
+        大学物理[002]
+        1-16周(单) 李老师 科研楼201
 """
 
 import os
@@ -44,18 +44,12 @@ SECTION_MAPPING = {
 WEEKDAY_MAPPING = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7}
 
 
-def parse_arrangements(text: str) -> List[Dict[str, Any]]:
+def parse_arrangements_detailed(text: str) -> List[Dict[str, Any]]:
     """
-    解析课程安排信息
-    
-    支持格式：
-    - 16周 5-6节 教师[编码,职称] 地点
-    - 9-15周 5-8节 教师[编码,职称] 地点
-    - 1-8周(双) 3-4节 教师[编码,职称] 地点
+    解析课程安排信息（教务系统格式，带教师编号）
+    格式：16周 5-6节 教师[编码,职称] 地点
     """
     results = []
-    
-    # 正则：支持单周(16周)和多周(9-15周)，支持单双周
     pattern = r'(\d+)(?:-(\d+))?周(?:\((单|双)\))?\s+(\d+)-(\d+)节\s+([^\[\s]+)\[(\d+),([^\]]+)\]\s+(\S+)'
     
     for match in re.finditer(pattern, text):
@@ -67,7 +61,6 @@ def parse_arrangements(text: str) -> List[Dict[str, Any]]:
         teacher_name = match.group(6).strip()
         location = match.group(9).strip()
         
-        # 清理地点
         if '班' in location:
             location = re.sub(r'[\u4e00-\u9fa5]+\d*班.*', '', location).strip()
         
@@ -90,34 +83,101 @@ def parse_arrangements(text: str) -> List[Dict[str, Any]]:
     return results
 
 
+def parse_arrangements_simple(text: str, default_start: int, default_end: int) -> List[Dict[str, Any]]:
+    """
+    解析课程安排信息（简化格式）
+    格式：1-16周 教师姓名 地点
+    或：1-16周(单) 教师姓名 地点
+    """
+    results = []
+    
+    # 匹配周次（支持单双周）
+    week_pattern = r'(\d+)(?:-(\d+))?周(?:\((单|双)\))?'
+    
+    for match in re.finditer(week_pattern, text):
+        start_week = int(match.group(1))
+        end_week = int(match.group(2)) if match.group(2) else start_week
+        week_type_str = match.group(3)
+        
+        week_type = 'all'
+        if week_type_str == '单':
+            week_type = 'odd'
+        elif week_type_str == '双':
+            week_type = 'even'
+        
+        # 提取周次后面的内容（教师和地点）
+        after_week = text[match.end():].strip()
+        
+        # 尝试匹配教师和地点
+        # 格式：教师姓名 地点
+        teacher = ""
+        location = ""
+        
+        # 常见地点模式
+        loc_patterns = [
+            r'(一教\d+|二教\d+|三教\d+|科研楼\d+|外语楼\d+|机房\d+|操场|体育馆|\S+楼\d+|\S+场)',
+        ]
+        
+        for loc_pat in loc_patterns:
+            loc_match = re.search(loc_pat, after_week)
+            if loc_match:
+                location = loc_match.group(1)
+                # 教师是地点之前的内容
+                teacher_part = after_week[:loc_match.start()].strip()
+                # 清理教师名（去掉可能的班级信息）
+                teacher = re.sub(r'[\u4e00-\u9fa5]+\d*班', '', teacher_part).strip()
+                break
+        
+        if not location:
+            # 没有匹配到地点，把周次后面的内容当作教师
+            teacher = after_week.split()[0] if after_week.split() else ""
+        
+        results.append({
+            'start_week': start_week,
+            'end_week': end_week,
+            'week_type': week_type,
+            'start_section': default_start,
+            'end_section': default_end,
+            'teacher': teacher,
+            'location': location
+        })
+    
+    return results
+
+
 def parse_course_cell(cell_content: str, weekday: int, default_start: int, default_end: int) -> List[Dict[str, Any]]:
     """解析单元格中的课程"""
     if not cell_content or pd.isna(cell_content):
         return []
     
-    content = str(cell_content)
+    content = str(cell_content).strip()
+    if not content:
+        return []
+    
     courses = []
     
-    # 找到所有课程名（格式：课程名[编码] 数字，位于行首或换行后）
-    course_pattern = r'(?:^|\n)([^\[\n]+)\[(\d+)\]\s*(\d+)\s*\n'
-    course_matches = list(re.finditer(course_pattern, content, re.MULTILINE))
+    # 按空行分割不同的课程块
+    blocks = re.split(r'\n\s*\n', content)
     
-    if not course_matches:
-        return []
-    
-    for i, match in enumerate(course_matches):
-        course_name = match.group(1).strip()
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
         
-        # 获取该课程块的内容
-        if i + 1 < len(course_matches):
-            block = content[match.start():course_matches[i + 1].start()]
-        else:
-            block = content[match.start():]
+        # 尝试匹配课程名（格式：课程名[编号]）
+        course_match = re.match(r'^([^\[\n]+)\[(\d+)\]', block)
         
-        # 解析安排信息
-        arrangements = parse_arrangements(block)
-        
-        if arrangements:
+        if course_match:
+            course_name = course_match.group(1).strip()
+            rest = block[course_match.end():].strip()
+            
+            # 先尝试详细格式（带节次）
+            arrangements = parse_arrangements_detailed(rest)
+            
+            # 如果详细格式没匹配到，尝试简化格式
+            if not arrangements:
+                arrangements = parse_arrangements_simple(rest, default_start, default_end)
+            
             for arr in arrangements:
                 courses.append({
                     'course_name': course_name,
@@ -131,46 +191,11 @@ def parse_course_cell(cell_content: str, weekday: int, default_start: int, defau
                     'end_week': arr['end_week']
                 })
         else:
-            # 备用解析
-            courses.append(parse_fallback(block, course_name, weekday, default_start, default_end))
-    
-    return courses
-
-    # 找到所有课程名（格式：课程名[编码] 数字）
-    course_pattern = r'([^\[]+)\[(\d+)\]\s*(\d+)'
-    course_matches = list(re.finditer(course_pattern, content))
-    
-    if not course_matches:
-        return []
-    
-    for i, match in enumerate(course_matches):
-        course_name = match.group(1).strip()
-        
-        # 获取该课程块的内容
-        if i + 1 < len(course_matches):
-            block = content[match.start():course_matches[i + 1].start()]
-        else:
-            block = content[match.start():]
-        
-        # 解析安排信息
-        arrangements = parse_arrangements(block)
-        
-        if arrangements:
-            for arr in arrangements:
-                courses.append({
-                    'course_name': course_name,
-                    'teacher': arr['teacher'],
-                    'location': arr['location'],
-                    'weekday': weekday,
-                    'start_section': arr['start_section'],
-                    'end_section': arr['end_section'],
-                    'week_type': arr['week_type'],
-                    'start_week': arr['start_week'],
-                    'end_week': arr['end_week']
-                })
-        else:
-            # 备用解析
-            courses.append(parse_fallback(block, course_name, weekday, default_start, default_end))
+            # 没有课程名格式，尝试从整个块解析
+            # 这种情况可能是格式不规范，尝试提取信息
+            parsed = parse_fallback(block, "", weekday, default_start, default_end)
+            if parsed['course_name']:
+                courses.append(parsed)
     
     return courses
 
@@ -190,20 +215,32 @@ def parse_fallback(content: str, course_name: str, weekday: int, default_start: 
     
     # 节次
     section_match = re.search(r'(\d+)-(\d+)节', content)
-    start_section = section_match and int(section_match.group(1)) or default_start
-    end_section = section_match and int(section_match.group(2)) or default_end
+    start_section = int(section_match.group(1)) if section_match else default_start
+    end_section = int(section_match.group(2)) if section_match else default_end
     
-    # 教师
+    # 教师（教务系统格式）
     teacher_match = re.search(r'([^\[\s]+)\[(\d+),([^\]]+)\]', content)
-    teacher = teacher_match and teacher_match.group(1).strip() or ""
+    teacher = teacher_match.group(1).strip() if teacher_match else ""
     
     # 地点
     location = ""
     if teacher_match:
         after = content[teacher_match.end():].strip()
-        loc_match = re.match(r'(一教\d+|科研楼\d+|[^\s]+训练场|[^\s]+场)', after)
+        loc_match = re.match(r'(一教\d+|科研楼\d+|[^\s]+训练场|[^\s]+场|\S+楼\d+)', after)
         if loc_match:
             location = loc_match.group(1)
+    
+    # 如果没有课程名，尝试从内容开头提取
+    if not course_name:
+        lines = content.strip().split('\n')
+        if lines:
+            first_line = lines[0].strip()
+            # 尝试匹配课程名格式
+            name_match = re.match(r'^([^\[\n]+)', first_line)
+            if name_match:
+                course_name = name_match.group(1).strip()
+                # 清理可能的数字后缀
+                course_name = re.sub(r'\s+\d+$', '', course_name)
     
     return {
         'course_name': course_name,
@@ -280,6 +317,11 @@ def update_config(courses: list) -> bool:
 def main():
     if len(sys.argv) < 2:
         print("使用方法: python import_courses.py <课表Excel文件>")
+        print("\n支持的格式：")
+        print("  格式1：课程名[编号]")
+        print("         周次 教师地点")
+        print("  示例：高等数学[001]")
+        print("        1-16周 张老师 一教101")
         sys.exit(1)
     
     file_path = sys.argv[1]
