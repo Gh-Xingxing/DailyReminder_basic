@@ -185,18 +185,6 @@
             font-size: 13px;
             color: #666;
         }
-        .reminder-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        .reminder-item input {
-            flex: 1;
-            margin-right: 8px;
-        }
-        .reminder-item .btn {
-            padding: 8px 12px;
-        }
     </style>
 </head>
 <body>
@@ -214,7 +202,7 @@
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-4 text-center">
-                        <div class="week-indicator" id="currentWeek">{% if current_week %}{{ current_week }}{% else %}-{% endif %}</div>
+                        <div class="week-indicator" id="currentWeek">{{ current_week if current_week else '-' }}</div>
                         <div class="text-muted">当前周次</div>
                     </div>
                     <div class="col-md-4 text-center">
@@ -222,11 +210,9 @@
                         <div class="text-muted">已导入课程</div>
                     </div>
                     <div class="col-md-4 text-center">
-                        {% if config.semester.start_date %}
-                        <span class="status-badge status-active">已配置</span>
-                        {% else %}
-                        <span class="status-badge status-inactive">未配置</span>
-                        {% endif %}
+                        <span class="status-badge {% if config.semester.start_date %}status-active{% else %}status-inactive{% endif %}">
+                            {% if config.semester.start_date %}已配置{% else %}未配置{% endif %}
+                        </span>
                         <div class="text-muted mt-1">系统状态</div>
                     </div>
                 </div>
@@ -245,11 +231,6 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button">
                             <i class="bi bi-book"></i> 课表管理
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="reminder-tab" data-bs-toggle="tab" data-bs-target="#reminder" type="button">
-                            <i class="bi bi-bell"></i> 每日提醒
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -292,12 +273,12 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">城市代码</label>
-                                    <input type="text" class="form-control" id="locationCode" value="{{ config.user.location }}">
-                                    <div class="form-text">和风天气城市代码，如 101110101（西安长安区）</div>
+                                    <input type="text" class="form-control" id="locationCode" value="{{ config.user.location if config.user else '101110101' }}">
+                                    <div class="form-text">和风天气城市代码，例如 101010100（示例城市）</div>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">城市名称</label>
-                                    <input type="text" class="form-control" id="locationName" value="{{ config.user.location_name }}">
+                                    <input type="text" class="form-control" id="locationName" value="{{ config.user.location_name if config.user else '请填写你的城市名称' }}">
                                     <div class="form-text">城市显示名称</div>
                                 </div>
                             </div>
@@ -308,6 +289,32 @@
                             </div>
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg"></i> 保存城市设置
+                            </button>
+                        </form>
+
+                        <hr class="my-4">
+
+                        <h5 class="mb-3"><i class="bi bi-bell"></i> 每日提醒设置</h5>
+                        <form id="reminderForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">周末推送模式</label>
+                                    <select class="form-select" id="skipWeekend">
+                                        <option value="false" {% if config.reminder and not config.reminder.skip_weekend %}selected{% endif %}>每天都提醒（周六周天有课也会推送）</option>
+                                        <option value="true" {% if not config.reminder or config.reminder.skip_weekend %}selected{% endif %}>周末不提醒（仅保留周日晚推送下周一）</option>
+                                    </select>
+                                    <div class="form-text">系统按“明天是否为周末”判断是否跳过，因此周日晚上仍可正常推送下周一课程。</div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">每日提醒内容（每行一条）</label>
+                                <textarea class="form-control" id="reminderItems" rows="5" placeholder="例如：&#10;✅ 课后复盘 20 分钟&#10;✅ 明日待办提前整理">{{ reminder_items }}</textarea>
+                                <div class="form-text">支持自定义文案；每行会在推送消息中显示为一条提醒。</div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg"></i> 保存每日提醒设置
                             </button>
                         </form>
                     </div>
@@ -343,59 +350,6 @@
                         </div>
                     </div>
 
-                    <!-- 每日提醒 -->
-                    <div class="tab-pane fade" id="reminder" role="tabpanel">
-                        <div class="info-box">
-                            <h6><i class="bi bi-info-circle"></i> 说明</h6>
-                            <p>设置每日提醒的内容，这些提醒会在每天的消息中显示。可以添加多条提醒，每条提醒占一行。</p>
-                        </div>
-                        
-                        <form id="reminderForm">
-                            <div class="row mb-3">
-                                <div class="col-md-12">
-                                    <div class="alert alert-info">
-                                        <h6><i class="bi bi-clock"></i> 推送时间设置</h6>
-                                        <p class="mb-2">推送时间由 GitHub Actions 控制，默认为北京时间 <strong>23:30</strong>。</p>
-                                        <p class="mb-2"><strong>修改方法：</strong></p>
-                                        <ol class="mb-0">
-                                            <li>进入你的 GitHub 项目页面</li>
-                                            <li>打开 <code>.github/workflows/daily_reminder.yml</code> 文件</li>
-                                            <li>找到 <code>cron: '30 15 * * *'</code> 这一行</li>
-                                            <li>修改时间（格式：分 时，UTC时间）</li>
-                                            <li>北京时间 = UTC + 8（例如北京时间 21:00 = UTC 13:00）</li>
-                                        </ol>
-                                        <p class="mt-2 mb-0"><strong>建议：</strong>由于 GitHub Actions 存在排队现象，建议将时间设置为目标时间提前 2-2.5 小时。</p>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row mb-3">
-                                <div class="col-md-12">
-                                    <label class="form-label">周末推送</label>
-                                    <select class="form-select" id="skipWeekend">
-                                        <option value="true" {% if config.reminder.skip_weekend == true %}selected{% endif %}>跳过周末</option>
-                                        <option value="false" {% if config.reminder.skip_weekend == false %}selected{% endif %}>周末也推送</option>
-                                    </select>
-                                    <div class="form-text">周末通常没有课程，可选择跳过</div>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">每日提醒内容</label>
-                                <div id="reminderItems">
-                                    <!-- 动态生成 -->
-                                </div>
-                                <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addReminderBtn">
-                                    <i class="bi bi-plus-lg"></i> 添加提醒
-                                </button>
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg"></i> 保存每日提醒配置
-                            </button>
-                        </form>
-                    </div>
-
                     <!-- 测试 -->
                     <div class="tab-pane fade" id="test" role="tabpanel">
                         <div class="row">
@@ -424,12 +378,13 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="config-file-info">
                             <strong>配置文件位置：</strong><br>
                             • 主配置：config.json<br>
                             • 环境变量：.env（本地）/ GitHub Secrets（线上）
                         </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -603,6 +558,34 @@
             }
         });
 
+        // 每日提醒设置
+        document.getElementById('reminderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const data = {
+                skip_weekend: document.getElementById('skipWeekend').value === 'true',
+                items: document.getElementById('reminderItems').value
+            };
+
+            try {
+                const response = await fetch('/api/reminder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast(result.message || '每日提醒设置已保存');
+                } else {
+                    showToast(result.error || '保存失败', 'error');
+                }
+            } catch (error) {
+                showToast('请求失败: ' + error.message, 'error');
+            }
+        });
+
         // 课表上传
         const uploadArea = document.getElementById('uploadArea');
         const courseFile = document.getElementById('courseFile');
@@ -720,87 +703,6 @@
                 showToast('操作失败: ' + error.message, 'error');
             }
         });
-
-        // 每日提醒配置
-        let reminderItems = [];
-        {% if config.reminder and config.reminder.get('items') %}
-        reminderItems = {{ config.reminder.get('items', []) | tojson }};
-        {% endif %}
-        
-        function renderReminderItems() {
-            const container = document.getElementById('reminderItems');
-            container.innerHTML = '';
-            
-            reminderItems.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.className = 'reminder-item';
-                div.innerHTML = `
-                    <input type="text" class="form-control" value="${item}" onchange="updateReminderItem(${index}, this.value)">
-                    <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeReminderItem(${index})">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                `;
-                container.appendChild(div);
-            });
-        }
-        
-        window.updateReminderItem = function(index, value) {
-            reminderItems[index] = value;
-        };
-        
-        window.removeReminderItem = function(index) {
-            reminderItems.splice(index, 1);
-            renderReminderItems();
-        };
-        
-        document.getElementById('addReminderBtn').addEventListener('click', function() {
-            reminderItems.push('');
-            renderReminderItems();
-            // 聚焦到新添加的输入框
-            const inputs = document.querySelectorAll('#reminderItems input');
-            if (inputs.length > 0) {
-                inputs[inputs.length - 1].focus();
-            }
-        });
-        
-        document.getElementById('reminderForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            // 过滤空项
-            const items = reminderItems.filter(item => item.trim() !== '');
-            
-            const data = {
-                time: document.getElementById('reminderTime').value,
-                skip_weekend: document.getElementById('skipWeekend').value === 'true',
-                items: items
-            };
-            
-            try {
-                const response = await fetch('/api/reminder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showToast(result.message || '每日提醒配置已保存');
-                    reminderItems = items;
-                    renderReminderItems();
-                } else {
-                    showToast(result.error || '保存失败', 'error');
-                }
-            } catch (error) {
-                showToast('请求失败: ' + error.message, 'error');
-            }
-        });
-        
-        // 初始化每日提醒列表
-        renderReminderItems();
-
-        // 初始化每日提醒列表
-        renderReminderItems();
 
         // 测试推送
         document.getElementById('testPushBtn').addEventListener('click', async function() {

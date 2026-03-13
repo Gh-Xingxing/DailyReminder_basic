@@ -7,27 +7,7 @@ on:
   workflow_dispatch:  # 手动触发按钮
 
 jobs:
-  check-weekday:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.check.outputs.should_run }}
-    steps:
-      - name: Check if weekday
-        id: check
-        run: |
-          # 获取明天是星期几（1-5=工作日，6-7=周末）
-          TOMORROW=$(date -d "+1 day" +%u)
-          if [ "$TOMORROW" -le 5 ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "明天是工作日，将发送提醒"
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "明天是周末，跳过提醒"
-          fi
-
   send-reminder:
-    needs: check-weekday
-    if: needs.check-weekday.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     
     steps:

@@ -76,6 +76,51 @@ def load_llm_prompts():
         return None
 
 
+def get_target_date():
+    return get_beijing_now().date() + timedelta(days=1)
+
+
+def get_target_weekday():
+    return get_target_date().weekday() + 1
+
+
+def should_skip_reminder(config):
+    reminder_config = config.get('reminder', {})
+    if not reminder_config.get('skip_weekend', True):
+        return False
+
+    target_weekday = get_target_weekday()
+    return target_weekday in (6, 7)
+
+
+def get_reminder_items(config):
+    reminder_config = config.get('reminder', {})
+    items = reminder_config.get('items')
+
+    if isinstance(items, list):
+        normalized_items = [str(item).strip() for item in items if str(item).strip()]
+        if normalized_items:
+            return normalized_items
+
+    fallback_items = []
+    if reminder_config.get('daily_reading_reminder', False):
+        fallback_items.append("📚 每天复习今日重点")
+    if reminder_config.get('project_idea_reminder', False):
+        fallback_items.append("📝 提前整理明日待办事项")
+    return fallback_items
+
+
+def get_target_week(config, current_week):
+    if current_week is None:
+        return None
+
+    if get_beijing_now().weekday() != 6:
+        return current_week
+
+    total_weeks = config.get('semester', {}).get('total_weeks', current_week + 1)
+    return min(current_week + 1, total_weeks)
+
+
 def calculate_current_week(config):
     """计算当前是第几周（使用北京时间）"""
     semester = config.get('semester', {})
@@ -159,8 +204,7 @@ def get_tomorrow_weather(config):
         temps_pm = []
         
         # 获取北京时间明天
-        beijing_now = get_beijing_now()
-        beijing_tomorrow = beijing_now.date() + timedelta(days=1)
+        beijing_tomorrow = get_target_date()
         
         for hour_data in hourly_data:
             try:
@@ -211,24 +255,14 @@ def get_tomorrow_courses(config, current_week):
         if not courses:
             return [], []
             
-        # 计算明天是星期几（使用北京时间）
         beijing_now = get_beijing_now()
-        tomorrow_weekday = (beijing_now.weekday() + 1) % 7 + 1  # 明天的星期几 (1-7)
-        # weekday(): 0=周一, 6=周日
-        # 明天 = (今天 + 1) % 7，然后 +1 转换为 1-7
-        if beijing_now.weekday() == 6:  # 今天是周日
-            tomorrow_weekday = 1  # 明天是周一
-        else:
-            tomorrow_weekday = beijing_now.weekday() + 2  # 周一(0) -> 周二(2)
+        tomorrow_weekday = get_target_weekday()
         
         logger.info(f"北京时间今天星期{beijing_now.weekday() + 1}，明天星期{tomorrow_weekday}")
         
-        # 计算明天的周次
-        # 如果今天是周日，明天是周一，周次要+1
-        tomorrow_week = current_week
-        if current_week is not None and beijing_now.weekday() == 6:
-            tomorrow_week = current_week + 1
-            logger.info(f"今天是周日，明天是第二周周一，使用周次: {tomorrow_week}")
+        tomorrow_week = get_target_week(config, current_week)
+        if tomorrow_week != current_week and tomorrow_week is not None:
+            logger.info(f"今天是周日，明天进入下一周，使用周次: {tomorrow_week}")
         
         # 筛选明天的课程
         tomorrow_courses = []
@@ -356,11 +390,10 @@ def generate_outfit_advice(weather_info, llm_config):
         )
         default_response = outfit_config.get('default_response', DEFAULT_OUTFIT_ADVICE)
     else:
-        user_prompt = f"""请为一位20岁男大学生提供穿搭建议。
+        user_prompt = f"""请为一位大学生提供穿搭建议。
 
 【用户信息】
-- 身高：178cm，身材匀称，有健身习惯
-- 风格：简约休闲
+- 风格：简约实用
 
 【天气情况】
 - 天气：{weather_info['text_day']}
@@ -431,13 +464,13 @@ def assemble_message(config, weather_info, morning_courses, afternoon_courses, m
         lines.append("")  # 空行
         
         # 提醒部分
-        lines.append("## 💪 每日提醒")
-        if config.get('reminder', {}).get('daily_reading_reminder', False):
-            lines.append("- 📖 每日至少一小时阅读精进")
-        if config.get('reminder', {}).get('project_idea_reminder', False):
-            lines.append("- 💡 打磨细化赚钱/个人项目的想法")
-        
-        lines.append("")  # 空行
+        reminder_items = get_reminder_items(config)
+        if reminder_items:
+            lines.append("## 💪 每日提醒")
+            for item in reminder_items:
+                prefix = "" if item.startswith("-") else "- "
+                lines.append(f"{prefix}{item}")
+            lines.append("")  # 空行
         
         # 激励和穿搭建议
         lines.append("## 🌟 今日激励")
@@ -476,6 +509,11 @@ def main():
         logger.info("正在读取配置文件...")
         config = load_config()
         llm_config = load_llm_prompts()
+
+        if should_skip_reminder(config):
+            target_weekday = get_target_weekday()
+            logger.info(f"已开启周末跳过，目标日期为星期{target_weekday}，本次不发送提醒")
+            return
         
         # 2. 计算当前周次
         current_week = calculate_current_week(config)
@@ -494,8 +532,10 @@ def main():
         
         # 5. 调用LLM生成激励话语和穿搭建议
         logger.info("正在调用LLM生成激励话语和穿搭建议...")
+        target_week = get_target_week(config, current_week)
+
         if config.get('llm', {}).get('enabled', False):
-            motivation = generate_motivation(current_week, llm_config)
+            motivation = generate_motivation(target_week, llm_config)
             outfit_advice = generate_outfit_advice(weather_info, llm_config)
         else:
             motivation = DEFAULT_MOTIVATION
@@ -503,7 +543,7 @@ def main():
         
         # 6. 组装消息
         logger.info("正在组装消息...")
-        title, content = assemble_message(config, weather_info, morning_courses, afternoon_courses, motivation, outfit_advice, current_week)
+        title, content = assemble_message(config, weather_info, morning_courses, afternoon_courses, motivation, outfit_advice, target_week)
         
         # 7. 推送消息
         logger.info("正在推送消息...")

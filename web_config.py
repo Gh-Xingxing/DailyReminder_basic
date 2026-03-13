@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-配置网页 - 每日提醒助手（基础版）
+配置网页 - 每日提醒助手
 功能：开学日期设置、课表导入、每日提醒配置、测试推送
 """
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 import os
 import json
@@ -29,6 +30,10 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # 配置文件路径
 CONFIG_FILE = 'config.json'
 
+DEFAULT_READING_REMINDER = "📚 每天复习今日重点"
+DEFAULT_PROJECT_REMINDER = "📝 提前整理明日待办事项"
+
+
 def load_config():
     """加载主配置"""
     try:
@@ -36,10 +41,15 @@ def load_config():
             return json.load(f)
     except FileNotFoundError:
         return {
-            "user": {"name": "", "location": "101110101", "location_name": "请修改为你的城市"},
+            "user": {"name": "", "location": "101110101", "location_name": "请填写你的城市名称"},
             "semester": {"start_date": "", "total_weeks": 16, "current_week": None},
-            "reminder": {"time": "23:30", "skip_weekend": True, "items": []},
-            "llm": {"enabled": True, "model": "qwen3-30b-a3b-instruct-2507"},
+            "reminder": {
+                "time": "23:30",
+                "skip_weekend": True,
+                "daily_reading_reminder": True,
+                "project_idea_reminder": True,
+                "items": [DEFAULT_READING_REMINDER, DEFAULT_PROJECT_REMINDER]
+            },
             "courses": []
         }
 
@@ -50,6 +60,31 @@ def save_config(config):
         json.dump(config, f, ensure_ascii=False, indent=2)
 
 
+def get_reminder_items(config):
+    reminder = config.get('reminder', {})
+    items = reminder.get('items')
+    if isinstance(items, list):
+        normalized_items = [str(item).strip() for item in items if str(item).strip()]
+        if normalized_items:
+            return normalized_items
+
+    fallback_items = []
+    if reminder.get('daily_reading_reminder', False):
+        fallback_items.append(DEFAULT_READING_REMINDER)
+    if reminder.get('project_idea_reminder', False):
+        fallback_items.append(DEFAULT_PROJECT_REMINDER)
+    return fallback_items
+
+
+def update_reminder_config(config, skip_weekend, raw_items):
+    reminder = config.setdefault('reminder', {})
+    items = [line.strip() for line in raw_items.splitlines() if line.strip()]
+
+    reminder['skip_weekend'] = bool(skip_weekend)
+    reminder['items'] = items
+    reminder['daily_reading_reminder'] = DEFAULT_READING_REMINDER in items
+    reminder['project_idea_reminder'] = DEFAULT_PROJECT_REMINDER in items
+    return items
 
 
 def calculate_current_week(start_date_str):
@@ -81,7 +116,8 @@ def index():
         start_date=start_date,
         total_weeks=total_weeks,
         current_week=current_week,
-        courses_count=len(config.get('courses', []))
+        courses_count=len(config.get('courses', [])),
+        reminder_items='\n'.join(get_reminder_items(config))
     )
 
 
@@ -303,7 +339,7 @@ def handle_location():
         return jsonify({
             'success': True,
             'location': user.get('location', '101110101'),
-            'location_name': user.get('location_name', '请修改为你的城市')
+            'location_name': user.get('location_name', '请填写你的城市名称')
         })
     
     # POST - 保存
@@ -312,7 +348,7 @@ def handle_location():
         config['user'] = {}
     
     config['user']['location'] = data.get('location', '101110101')
-    config['user']['location_name'] = data.get('location_name', '请修改为你的城市')
+    config['user']['location_name'] = data.get('location_name', '请填写你的城市名称')
     save_config(config)
     
     return jsonify({
@@ -321,37 +357,19 @@ def handle_location():
     })
 
 
-@app.route('/api/reminder', methods=['GET', 'POST'])
-def handle_reminder():
-    """获取或设置每日提醒"""
+@app.route('/api/reminder', methods=['POST'])
+def save_reminder():
+    data = request.json or {}
     config = load_config()
-    
-    if request.method == 'GET':
-        reminder = config.get('reminder', {})
-        return jsonify({
-            'success': True,
-            'skip_weekend': reminder.get('skip_weekend', True),
-            'items': reminder.get('items', [])
-        })
-    
-    # POST - 保存
-    data = request.json
-    if 'reminder' not in config:
-        config['reminder'] = {}
-    
-    if 'skip_weekend' in data:
-        config['reminder']['skip_weekend'] = data['skip_weekend']
-    if 'items' in data:
-        config['reminder']['items'] = data['items']
-    
+    skip_weekend = data.get('skip_weekend', True)
+    items = update_reminder_config(config, skip_weekend, data.get('items', ''))
     save_config(config)
-    
+
     return jsonify({
         'success': True,
-        'message': '每日提醒配置已保存'
+        'message': f'每日提醒设置已保存，共 {len(items)} 条提醒',
+        'items_count': len(items)
     })
-
-
 
 
 @app.route('/api/test-push', methods=['POST'])
@@ -397,4 +415,4 @@ if __name__ == '__main__':
     print(f"访问地址: http://localhost:5000")
     print("按 Ctrl+C 停止服务")
     print("=" * 50)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='127.0.0.1', port=5000, use_reloader=False)
