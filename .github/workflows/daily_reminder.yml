@@ -2,7 +2,7 @@ name: Daily Reminder
 
 on:
   schedule:
-    # 每天 15:30 UTC = 北京时间 23:30
+    # 每天 15:30 UTC = 北京时间 23:30  ||鉴于action运行排队问题，建议提前目标时间两个半小时左右设置运行时间！
     - cron: '30 15 * * *'
   workflow_dispatch:  # 手动触发按钮
 
