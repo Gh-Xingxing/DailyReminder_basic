@@ -30,6 +30,10 @@ import json
 import re
 import pandas as pd
 from typing import List, Dict, Any
+try:
+    from openpyxl import load_workbook
+except Exception:
+    load_workbook = None
 
 # 节次映射：行索引 -> (开始节, 结束节)
 SECTION_MAPPING = {
@@ -42,6 +46,121 @@ SECTION_MAPPING = {
 
 # 星期映射
 WEEKDAY_MAPPING = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7}
+
+WEEKDAY_LABELS = {
+    '周一': 1,
+    '星期一': 1,
+    '周二': 2,
+    '星期二': 2,
+    '周三': 3,
+    '星期三': 3,
+    '周四': 4,
+    '星期四': 4,
+    '周五': 5,
+    '星期五': 5,
+    '周六': 6,
+    '星期六': 6,
+    '周日': 7,
+    '星期日': 7,
+    '星期天': 7,
+}
+
+BIG_SECTION_INDEX = {
+    '一': 1,
+    '二': 2,
+    '三': 3,
+    '四': 4,
+    '五': 5,
+    '六': 6,
+    '七': 7,
+    '八': 8,
+    '九': 9,
+    '十': 10,
+}
+
+
+def normalize_cell_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).replace('\r\n', '\n').replace('\r', '\n').strip()
+
+
+def build_dataframe_from_excel(file_path: str) -> pd.DataFrame:
+    ext = os.path.splitext(file_path)[1].lower()
+    if load_workbook is None or ext == '.xls':
+        return pd.read_excel(file_path, header=None)
+
+    try:
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.active
+
+        matrix = [[ws.cell(r, c).value for c in range(1, ws.max_column + 1)] for r in range(1, ws.max_row + 1)]
+
+        for merged_range in ws.merged_cells.ranges:
+            min_col, min_row, max_col, max_row = merged_range.bounds
+            top_left_value = ws.cell(min_row, min_col).value
+            for r in range(min_row, max_row + 1):
+                for c in range(min_col, max_col + 1):
+                    matrix[r - 1][c - 1] = top_left_value
+
+        return pd.DataFrame(matrix)
+    except Exception:
+        return pd.read_excel(file_path, header=None)
+
+
+def detect_weekday_columns(df: pd.DataFrame) -> Dict[int, int]:
+    detected = {}
+    scan_rows = min(len(df), 5)
+
+    for row_idx in range(scan_rows):
+        for col_idx in range(len(df.columns)):
+            text = normalize_cell_text(df.iloc[row_idx, col_idx])
+            if not text:
+                continue
+            for label, weekday in WEEKDAY_LABELS.items():
+                if label in text:
+                    detected[col_idx] = weekday
+                    break
+
+    if len(detected) >= 5:
+        return detected
+
+    return WEEKDAY_MAPPING.copy()
+
+
+def parse_section_from_label(text: str) -> Any:
+    if not text:
+        return None
+
+    range_match = re.search(r'第?\s*(\d+)\s*[-~到]\s*(\d+)\s*节', text)
+    if range_match:
+        return int(range_match.group(1)), int(range_match.group(2))
+
+    big_match = re.search(r'第\s*([一二三四五六七八九十\d]+)\s*大节', text)
+    if big_match:
+        token = big_match.group(1)
+        index = int(token) if token.isdigit() else BIG_SECTION_INDEX.get(token)
+        if index:
+            start = (index - 1) * 2 + 1
+            end = start + 1
+            return start, end
+
+    return None
+
+
+def build_row_section_mapping(df: pd.DataFrame) -> Dict[int, Any]:
+    mapping = {}
+
+    for row_idx in range(len(df)):
+        first_col_text = normalize_cell_text(df.iloc[row_idx, 0]) if len(df.columns) > 0 else ""
+        section = parse_section_from_label(first_col_text)
+        if section:
+            mapping[row_idx] = section
+
+    if mapping:
+        return mapping
+
+    return SECTION_MAPPING.copy()
 
 
 def parse_arrangements_detailed(text: str) -> List[Dict[str, Any]]:
@@ -164,12 +283,14 @@ def parse_course_cell(cell_content: str, weekday: int, default_start: int, defau
         if not block:
             continue
         
-        # 尝试匹配课程名（格式：课程名[编号]）
-        course_match = re.match(r'^([^\[\n]+)\[(\d+)\]', block)
+        lines = [line.strip() for line in block.split('\n') if line.strip()]
+        first_line = lines[0] if lines else ""
+
+        course_match = re.match(r'^([^\[\n]+?)(?:\[[^\]\n]*\])?(?:\s+\d+)?$', first_line)
         
         if course_match:
             course_name = course_match.group(1).strip()
-            rest = block[course_match.end():].strip()
+            rest = '\n'.join(lines[1:]).strip()
             
             # 先尝试详细格式（带节次）
             arrangements = parse_arrangements_detailed(rest)
@@ -260,19 +381,21 @@ def parse_excel(file_path: str) -> Dict[str, Any]:
     result = {'success': False, 'message': '', 'courses': [], 'errors': []}
     
     try:
-        df = pd.read_excel(file_path, header=None)
+        df = build_dataframe_from_excel(file_path)
+        weekday_mapping = detect_weekday_columns(df)
+        section_mapping = build_row_section_mapping(df)
         all_courses = []
         
-        for row_idx in range(2, len(df)):
-            if row_idx not in SECTION_MAPPING:
+        for row_idx in range(len(df)):
+            if row_idx not in section_mapping:
                 continue
-            start_section, end_section = SECTION_MAPPING[row_idx]
+            start_section, end_section = section_mapping[row_idx]
             
-            for col_idx in range(1, len(df.columns)):
-                if col_idx not in WEEKDAY_MAPPING:
+            for col_idx in range(len(df.columns)):
+                if col_idx not in weekday_mapping:
                     continue
                 
-                weekday = WEEKDAY_MAPPING[col_idx]
+                weekday = weekday_mapping[col_idx]
                 cell = df.iloc[row_idx, col_idx]
                 courses = parse_course_cell(cell, weekday, start_section, end_section)
                 all_courses.extend(courses)
